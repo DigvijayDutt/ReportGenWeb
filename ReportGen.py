@@ -334,7 +334,7 @@ class MultiDocApp:
             self.render_widgets()
 
             ui.button('⚙️ Generate Documents', on_click=self.process_files).classes('bg-[#033452] text-white w-full').props('color=secondary')
-            ui.button('⬇️ Get Download', on_click=self.get_download).classes('!bg-[#033452] text-white w-full')
+            ui.button('⬇️ Download', on_click=self.get_download).classes('!bg-[#033452] text-white w-full')
             self.log_area = ui.html('', sanitize=False) \
                 .classes('w-full h-64 bg-black rounded p-2 overflow-y-scroll')
             
