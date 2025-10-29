@@ -325,14 +325,15 @@ class MultiDocApp:
         self.claim_image_map = {}
         self.output_folder = OUTPUT_FOLDER
         self.download_path = ''
-        
-        ui.label('📑 Multi Document Generator').classes('text-2xl font-bold text-black-700 mb-4 text-outline-black')
+        with ui.row().classes('w-full justify-center items-center gap-3'):
+            ui.image('./logo.jpg').classes('!absolute left-4 top-3 w-35 h-15')
+            ui.label('Report Automation Tool').classes('my-3 text-2xl font-bold text-black-700 mb-4 text-outline-black')
 
         with ui.column().classes('gap-4 w-2/3 mx-auto px-12 py-8 rounded-xl shadow-2xl bg-white'):
             self.render_widgets()
 
-            ui.button('⚙️ Generate Documents', on_click=self.process_files).classes('bg-blue-600 text-white w-full')
-            ui.button('⬇️ Get Download', on_click=self.get_download).classes('bg-blue-600 text-white w-full')
+            ui.button('⚙️ Generate Documents', on_click=self.process_files).classes('bg-[#033452] text-white w-full').props('color=#033452')
+            ui.button('⬇️ Get Download', on_click=self.get_download).classes('!bg-[#033452] text-white w-full')
             self.log_area = ui.html('', sanitize=False) \
                 .classes('w-full h-64 bg-black rounded p-2 overflow-y-scroll')
             
@@ -341,7 +342,7 @@ class MultiDocApp:
         with ui.row().classes('gap-6 w-full justify-between'):
             with ui.column().classes('items-start'):
                 ui.label('Upload an Excel file to generate multiple Word reports:')
-                ui.upload(on_upload=self.handle_excel_upload, auto_upload=True).props('accept=.xls,.xlsx')
+                ui.upload(on_upload=self.handle_excel_upload, auto_upload=True).props('accept=.xls,.xlsx').style('bg-color:#033452;')
 
             with ui.column().classes('items-start'):
                 ui.label('Upload image ZIP containing claim folders:')
