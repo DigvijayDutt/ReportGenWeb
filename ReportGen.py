@@ -501,15 +501,15 @@ class MultiDocApp:
                             zf.write(fpath, arcname=os.path.basename(fpath))
                 self.log(f"[INFO] Packaged {len(generated_files)} documents into: {zip_path}")
 
-                opdoc = generated_files[0]
-                oppdf = opdoc.replace('.docx','.pdf')
-                await asyncio.to_thread(convert, opdoc,oppdf)
-                app.add_static_files('/outputs', 'outputs')
-                with ui.dialog() as preview_dialog, ui.card().classes('w-3/4 h-[80vh] p-4'):
-                    ui.label('📄 PDF Preview').classes('text-lg font-bold mb-2')
-                    ui.element('iframe').props('src="/outputs/claim1.pdf" type="application/pdf"').classes('w-full h-[70vh] rounded shadow-lg border')
-                    ui.button('Close', on_click=preview_dialog.close).props('color=primary text-white')
-                preview_dialog.open()
+                # opdoc = generated_files[0]
+                # oppdf = opdoc.replace('.docx','.pdf')
+                # await asyncio.to_thread(convert, opdoc,oppdf)
+                # app.add_static_files('/outputs', 'outputs')
+                # with ui.dialog() as preview_dialog, ui.card().classes('w-3/4 h-[80vh] p-4'):
+                #     ui.label('📄 PDF Preview').classes('text-lg font-bold mb-2')
+                #     ui.element('iframe').props('src="/outputs/claim1.pdf" type="application/pdf"').classes('w-full h-[70vh] rounded shadow-lg border')
+                #     ui.button('Close', on_click=preview_dialog.close).props('color=primary text-white')
+                # preview_dialog.open()
 
 
                 self.download_path = zip_path
