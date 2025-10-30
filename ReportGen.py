@@ -12,7 +12,8 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_ALIGN_VERTICAL
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from nicegui import ui
+from nicegui import ui,app
+from docx2pdf import convert
 # -------------------- STYLE MAP --------------------
 STYLE_MAP = {
     "Normal": {
@@ -500,6 +501,17 @@ class MultiDocApp:
                             zf.write(fpath, arcname=os.path.basename(fpath))
                 self.log(f"[INFO] Packaged {len(generated_files)} documents into: {zip_path}")
 
+                opdoc = generated_files[0]
+                oppdf = opdoc.replace('.docx','.pdf')
+                await asyncio.to_thread(convert, opdoc,oppdf)
+                app.add_static_files('/outputs', 'outputs')
+                with ui.dialog() as preview_dialog, ui.card().classes('w-3/4 h-[80vh] p-4'):
+                    ui.label('📄 PDF Preview').classes('text-lg font-bold mb-2')
+                    ui.element('iframe').props('src="/outputs/claim1.pdf" type="application/pdf"').classes('w-full h-[70vh] rounded shadow-lg border')
+                    ui.button('Close', on_click=preview_dialog.close).props('color=primary text-white')
+                preview_dialog.open()
+
+
                 self.download_path = zip_path
                 
             else:
@@ -507,6 +519,7 @@ class MultiDocApp:
 
         except Exception as e:
             self.log(f"[ERROR] Unexpected error while processing files: {e}")
+    
     
     async def get_download(self):
         if not self.download_path or not os.path.exists(self.download_path):
