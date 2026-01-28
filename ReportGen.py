@@ -549,5 +549,5 @@ class MultiDocApp:
 # Run app
 MultiDocApp()
 # port = int(os.environ.get("PORT", 8080))
-ui.run(host="0.0.0.0", port=8080, reload=False)
+ui.run(host="0.0.0.0", port=8080, reload=False, workers=1)
 
