@@ -145,6 +145,42 @@ def clean_folder(folder_path):
         except Exception as e:
             print(f"[WARNING] Failed to delete {file_path}. Reason: {e}")
 
+def replace_placeholders(doc, replacements: dict):
+    for para in doc.paragraphs:
+        for key, value in replacements.items():
+            if key in para.text:
+                para.text = para.text.replace(key, str(value))
+
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for para in cell.paragraphs:
+                    for key, value in replacements.items():
+                        if key in para.text:
+                            para.text = para.text.replace(key, str(value))
+
+def replace_picture_control(doc, tag, image_path, width=Inches(4)):
+    """
+    Replace a Picture Content Control (by tag) with an image.
+    """
+    for sdt in doc.element.xpath('.//w:sdt'):
+        tag_el = sdt.find('.//w:tag', namespaces=sdt.nsmap)
+        if tag_el is not None and tag_el.get(qn('w:val')) == tag:
+            sdt_content = sdt.find(qn('w:sdtContent'))
+            sdt_content.clear()
+
+            p = OxmlElement('w:p')
+            r = OxmlElement('w:r')
+            p.append(r)
+            sdt_content.append(p)
+
+            paragraph = doc._body._element.xpath('.//w:p')[-1]
+            run = paragraph.add_run()
+            run.add_picture(image_path, width=width)
+            return True
+
+    return False
+
 
 # -------------------- DOCUMENT GENERATOR --------------------
 def generate_docs(excel_path, room_image_map, output_filename, row_index, log_callback):
@@ -158,6 +194,10 @@ def generate_docs(excel_path, room_image_map, output_filename, row_index, log_ca
 
     try:
         columns = df.columns
+        col_names = []
+        for i in range(len(columns)):
+            col_name = re.sub(r"\s*\((?:select.*|dd/mm/yyyy)\)\s*:?", "", str(columns[i]), flags=re.IGNORECASE).lower().strip()
+            col_names.append(col_name)
         data = df.values
         if len(data) == 0:
             log_callback("[ERROR] Excel file contains no rows.")
@@ -166,110 +206,64 @@ def generate_docs(excel_path, room_image_map, output_filename, row_index, log_ca
             log_callback(f"[WARNING] Row index {row_index} out of bounds. Using last available row.")
             row_index = len(data) - 1
 
-        template_path = resource_path(os.path.join("templates", "template.docx"))
-        if os.path.exists(template_path):
-            doc = Document(template_path)
-        else:
-            raise FileNotFoundError("template.docx not found")
+        template_path = resource_path(os.path.join("templates", "template1.dotx"))
+        if not os.path.exists(template_path):
+            raise FileNotFoundError("template1.dotx not found")
+
+        doc = Document(template_path)
+
     except Exception:
         log_callback("[WARNING] Template missing or inaccessible. Using blank document.")
         doc = Document()
 
-    # Heading
-    heading = doc.add_heading("FIRST INSPECTION REPORT", level=1)
-    apply_style(heading, "Heading 1")
-    heading.add_run().add_break()
-
-    # Table
-    table = doc.add_table(rows=3, cols=1)
-    table.autofit = True
-    doc.add_page_break()
-
     # Header Image
-    try:
-        imageCell = table.cell(1, 0)
-        imageCell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-        home_tuple = next(((k, v) for k, v in room_image_map.items() if k.lower() == "home"), None)
-        if home_tuple:
-            para1 = imageCell.paragraphs[0]
-            run = para1.add_run()
-            run.add_break()
-            run.add_break()
-            try:
-                run.add_picture(home_tuple[1][0])
-                para1.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-                run.add_break()
-            except Exception as e:
-                imageCell.text = "[Header image missing]"
-                log_callback(f"[WARNING] Failed to insert header image: {e}")
-        else:
-            imageCell.text = "[Header image not provided]"
-    except Exception as e:
-        log_callback(f"[WARNING] Failed to load image header: {e}")
+    home_image = next(
+        (v[0] for k, v in room_image_map.items() if k.lower() == "home"),
+        None
+    )
+
+    if home_image:
+        replaced = replace_picture_control(
+            doc,
+            tag="front_of_risk",
+            image_path=home_image,
+            width=Inches(4.5)
+        )
+
+        if not replaced:
+            log_callback("[WARNING] Image placeholder not found.")
+
 
     note = ''
     # Fill metadata
-    for i in range(len(columns)):
-        col_name = re.sub(r"\s*\((?:select.*|dd/mm/yyyy)\)\s*:?", "", str(columns[i]), flags=re.IGNORECASE).lower().strip()
-        display_col_name = re.sub(r"\s*\((?:select.*|dd/mm/yyyy)\)\s*:?", "", str(columns[i]), flags=re.IGNORECASE).strip()
-        try:
-            if col_name in ["policyholder", "address", "insurer", "claim #", "adjuster",
-                            "date of inspection", "date of loss", "date of report", "type of loss", "cause of loss"]:
-                textCell = table.cell(0, 0)
-                if col_name == "cause of loss":
-                    textCell = table.cell(2, 0)
-                para = textCell.add_paragraph()
-                run = para.add_run(f"{display_col_name}: ")
-                if col_name == "cause of loss":
-                    para.add_run(f"\n{str(data[row_index][i])}\n")
-                else:
-                    para.add_run(str(data[row_index][i]))
-                apply_style(para, "Normal")
-                run.bold = True
-            elif col_name in ["indemnity reserves:", "expense reserves:"]:
-                para = doc.add_paragraph(display_col_name + " ", style='List Bullet')
-                if col_name == "indemnity reserves:":
-                    temp = data[row_index][i].split("HST")
-                    note = temp[1]
-                    run = para.add_run(temp[0] + "HST")
-                    apply_style(para, "List Paragraph")
-                    run.font.bold = False
-                else:
-                    run = para.add_run(str(data[row_index][i]))
-                    run1 = para.add_run(f"\nNote: {note.strip()}")
-                    run1.add_break()
-                    apply_style(para, "List Paragraph")
-                    run.font.bold = False
-                    run1.font.bold = False
-            elif col_name == "product manager":
-                temp = data[row_index][i].split('\n')
-                para = doc.add_paragraph()
-                para.add_run().add_break()
-                run = para.add_run("Thank you,")
-                run1 = para.add_run(f"\n{temp[0]}")
-                for line in temp[1:]:
-                    para.add_run(f"\n{line}")
-                apply_style(para, "Normal")
-                run1.font.bold = True
-            else:
-                if col_name == "conclusion":
-                    doc.add_paragraph().add_run().add_break()
-                    heading2 = doc.add_heading(display_col_name, level=2)
-                    par = doc.add_paragraph(str(data[row_index][i]))
-                    apply_style(heading2, "Heading 3")
-                    apply_style(par, "Normal")
-                else:
-                    hed = doc.add_heading(display_col_name, level=2)
-                    apply_style(hed, "Heading 3")
-                    para = doc.add_paragraph(str(data[row_index][i]))
-                    apply_style(para, "Normal")
-                    if col_name != "recommended reserves for trinity's involvement:":
-                        para.add_run().add_break()
-                    else:
-                        para.paragraph_format.line_spacing = 1.5
-                
-        except Exception as e:
-            log_callback(f"[WARNING] Failed to insert column {display_col_name}: {e}")
+    row = df.iloc[row_index]
+
+    replacements = {
+        "{{POLICY_HOLDER}}": row.get("POLICYHOLDER", ""),
+        "{{ADDRESS}}": row.get("ADDRESS", ""),
+        "{{INSURER}}": row.get("INSURER", ""),
+        "{{CLAIM#}}": row.get("CLAIM #", ""),
+        "{{ADJUSTER}}": row.get("ADJUSTER", ""),
+        "{{GC}}": row.get("ASSIGNED GC", ""),
+        "{{PM}}": row.get("PRODUCT MANAGER", ""),
+        "{{CONTACT}}": row.get("PM Contact", ""),
+        "{{DATE_OF_LOSS}}": row.get("Date of Loss", ""),
+        "{{DA}}": row.get("Date Assigned", ""),
+        "{{DI}}": row.get("Date of Inspection", ""),
+        "{{DR}}": row.get("Date of Report", ""),
+        "{{LOSS}}": row.get("Type of Loss", ""),
+        "{{DESCRIPTION_OF_RISK}}": row.get("Description of Risk", ""),
+        "{{CAUSE_OF_LOSS}}": row.get("Cause of Loss", ""),
+        "{{ORIGINS_OF_LOSS}}": row.get("Origins of Loss", ""),
+        "{{SCOPE_OF_WORK}}": row.get("Scope of Work", ""),
+        "{{INSURED_CONTENTS_LOSS}}": row.get("Insured Contents Loss", ""),
+        "{{TRINITY_RESERVES}}": row.get("Trinity Reserves", ""),
+        "{{PLAN_OF_ACTION}}": row.get("Plan of Action", ""),
+        "{{SIGNATURE}}": row.get("Product Manager", ""),
+    }
+
+    replace_placeholders(doc, replacements)
+
 
     # Photos Section
     if any(room_image_map.values()):
@@ -533,12 +527,11 @@ class MultiDocApp:
         asyncio.create_task(self._refresh_after_download())
 
     async def _refresh_after_download(self):
-        """Wait a short time, then reset uploads and clean folders."""
-        await asyncio.sleep(2)  # give browser time to start download
+        await asyncio.sleep(2)  
         self.log("[INFO] Resetting upload widgets for next use...")
         self.excel_path = None
         self.claim_image_map = {}
-        self.render_widgets.refresh()  # 🔄 refresh upload UI
+        self.render_widgets.refresh() 
         await asyncio.sleep(1)
         self.log("[INFO] Cleaning temporary folders...")
         clean_folder(UPLOAD_FOLDER)
@@ -546,7 +539,6 @@ class MultiDocApp:
         self.clear_log()
         self.log("[SUCCESS] Ready for new upload cycle.")
 
-# Run app
 MultiDocApp()
 # port = int(os.environ.get("PORT", 8080))
 ui.run(host="127.0.0.1", port=9080, reload=False, workers=1)
