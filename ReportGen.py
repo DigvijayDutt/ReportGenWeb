@@ -31,7 +31,7 @@ STYLE_MAP = {
         "bold": True,
         "italic": False,
         "underline": True,
-        "color": RGBColor(0, 0, 0),
+        "color": RGBColor(47, 84, 150),
         "alignment": WD_ALIGN_PARAGRAPH.CENTER,
         "line_spacing": 1.5
     },
@@ -41,7 +41,7 @@ STYLE_MAP = {
         "bold": True,
         "italic": False,
         "underline": False,
-        "color": RGBColor(0, 0, 0),
+        "color": RGBColor(47, 84, 150),
         "alignment": WD_ALIGN_PARAGRAPH.LEFT,
         "line_spacing": 1.5
     },
@@ -178,12 +178,11 @@ def generate_docs(excel_path, room_image_map, output_filename, row_index, log_ca
     # Heading
     heading = doc.add_heading("FIRST INSPECTION REPORT", level=1)
     apply_style(heading, "Heading 1")
-    heading.add_run().add_break()
 
     # Table
-    table = doc.add_table(rows=3, cols=1)
+    table = doc.add_table(rows=4, cols=1)
     table.autofit = True
-    doc.add_page_break()
+    nestedt = table.cell(0,0).add_table(rows=1,cols=2)
 
     # Header Image
     try:
@@ -197,7 +196,7 @@ def generate_docs(excel_path, room_image_map, output_filename, row_index, log_ca
             run.add_break()
             try:
                 run.add_picture(home_tuple[1][0])
-                para1.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                para1.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 run.add_break()
             except Exception as e:
                 imageCell.text = "[Header image missing]"
@@ -213,19 +212,25 @@ def generate_docs(excel_path, room_image_map, output_filename, row_index, log_ca
         col_name = re.sub(r"\s*\((?:select.*|dd/mm/yyyy)\)\s*:?", "", str(columns[i]), flags=re.IGNORECASE).lower().strip()
         display_col_name = re.sub(r"\s*\((?:select.*|dd/mm/yyyy)\)\s*:?", "", str(columns[i]), flags=re.IGNORECASE).strip()
         try:
-            if col_name in ["policyholder", "address", "insurer", "claim #", "adjuster",
-                            "date of inspection", "date of loss", "date of report", "type of loss", "cause of loss"]:
-                textCell = table.cell(0, 0)
+            if col_name in ["policyholder", "address", "insurer", "adjuster","description of risk","claim #","date of report",
+                            "date assigned","date of inspection", "date of loss", "type of loss", "cause of loss","assigned gc","pm contact"]:
+                textCell = nestedt.cell(0,0)
                 if col_name == "cause of loss":
+                    textCell = table.cell(3, 0)
+                if col_name == "description of risk":
                     textCell = table.cell(2, 0)
+                if col_name in ["claim #","date of report","date assigned","assigned gc","pm contact"]:
+                    textCell = nestedt.cell(0,1)
                 para = textCell.add_paragraph()
                 run = para.add_run(f"{display_col_name}: ")
-                if col_name == "cause of loss":
+                if col_name == "cause of loss" or col_name == "description of risk":
                     para.add_run(f"\n{str(data[row_index][i])}\n")
                 else:
                     para.add_run(str(data[row_index][i]))
                 apply_style(para, "Normal")
                 run.bold = True
+                if col_name == "cause of loss" or col_name == "description of risk":
+                    run.font.color.rgb = RGBColor(47, 84, 150)
             elif col_name in ["indemnity reserves:", "expense reserves:"]:
                 para = doc.add_paragraph(display_col_name + " ", style='List Bullet')
                 if col_name == "indemnity reserves:":
@@ -243,6 +248,13 @@ def generate_docs(excel_path, room_image_map, output_filename, row_index, log_ca
                     run1.font.bold = False
             elif col_name == "product manager":
                 temp = data[row_index][i].split('\n')
+
+                para1 = nestedt.cell(0,0).add_paragraph()
+                run2 = para1.add_run(f"{display_col_name}: ")
+                para1.add_run(f"{temp[0]}")
+                apply_style(para1, "Normal")
+                run2.bold =  True
+
                 para = doc.add_paragraph()
                 para.add_run().add_break()
                 run = para.add_run("Thank you,")
