@@ -8,8 +8,8 @@ import asyncio
 import pandas as pd
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.table import WD_ALIGN_VERTICAL
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
+from docx.enum.table import WD_ALIGN_VERTICAL,WD_ROW_HEIGHT_RULE
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from nicegui import ui,app
@@ -53,7 +53,16 @@ STYLE_MAP = {
         "underline": False,
         "color": RGBColor(0, 0, 0),
         "line_spacing": 1.15
-    }
+    },
+    "List Number": {
+        "font_name": "Times New Roman",
+        "font_size": Pt(12),
+        "bold": False,
+        "italic": False,
+        "underline": False,
+        "color": RGBColor(0, 0, 0),
+        "line_spacing": 1.15
+    },
 }
 
 
@@ -93,6 +102,19 @@ def set_cell_padding(cell, top=200, start=200, bottom=200, end=200):
         node.set(qn("w:w"), str(value))
         node.set(qn("w:type"), "dxa")
 
+def set_cell_padding_table(cell, top=50, start=50, bottom=50, end=50):
+    tc = cell._tc
+    tcPr = tc.get_or_add_tcPr()
+    tcMar = OxmlElement('w:tcMar')
+
+    for margin in (('top', top), ('start', start),
+                   ('bottom', bottom), ('end', end)):
+        node = OxmlElement(f'w:{margin[0]}')
+        node.set(qn('w:w'), str(margin[1]))
+        node.set(qn('w:type'), 'dxa')
+        tcMar.append(node)
+
+    tcPr.append(tcMar)
 
 # -------------------- FOLDER MANAGEMENT --------------------
 def get_appdata_base(app_name="DocumentGenerator"):
@@ -180,19 +202,41 @@ def generate_docs(excel_path, room_image_map, output_filename, row_index, log_ca
     apply_style(heading, "Heading 1")
 
     # Table
-    table = doc.add_table(rows=4, cols=1)
+    table = doc.add_table(rows=7, cols=1)
     table.autofit = True
-    nestedt = table.cell(0,0).add_table(rows=1,cols=2)
+    for row in table.rows:
+        for cell in row.cells:
+            cell._tc.clear_content()
+    
+    nestedti = table.cell(1,0).add_table(rows=1,cols=2)
+    for row in nestedti.rows:
+        for cell in row.cells:
+            cell._tc.clear_content()
 
+    nestedtd = table.cell(2,0).add_table(rows=1, cols=2)
+    for row in nestedtd.rows:
+        for cell in row.cells:
+            cell._tc.clear_content()
+    
+    for row in table.rows:
+        for cell in row.cells:
+            set_cell_padding(cell, 40, 40, 40, 40)
+
+    for row in nestedti.rows:
+        for cell in row.cells:
+            set_cell_padding(cell, 30, 30, 30, 30)
+
+    for row in nestedtd.rows:
+        for cell in row.cells:
+            set_cell_padding(cell, 30, 30, 30, 30)
     # Header Image
     try:
-        imageCell = table.cell(1, 0)
+        imageCell = table.cell(4, 0)
         imageCell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
         home_tuple = next(((k, v) for k, v in room_image_map.items() if k.lower() == "home"), None)
         if home_tuple:
-            para1 = imageCell.paragraphs[0]
+            para1 = imageCell.add_paragraph()
             run = para1.add_run()
-            run.add_break()
             run.add_break()
             try:
                 run.add_picture(home_tuple[1][0])
@@ -214,20 +258,33 @@ def generate_docs(excel_path, room_image_map, output_filename, row_index, log_ca
         try:
             if col_name in ["policyholder", "address", "insurer", "adjuster","description of risk","claim #","date of report",
                             "date assigned","date of inspection", "date of loss", "type of loss", "cause of loss","assigned gc","pm contact"]:
-                textCell = nestedt.cell(0,0)
+                textCell = table.cell(0,0)
                 if col_name == "cause of loss":
-                    textCell = table.cell(3, 0)
+                    textCell = table.cell(6, 0)
                 if col_name == "description of risk":
-                    textCell = table.cell(2, 0)
-                if col_name in ["claim #","date of report","date assigned","assigned gc","pm contact"]:
-                    textCell = nestedt.cell(0,1)
+                    textCell = table.cell(5, 0)
+                if col_name == "type of loss":
+                    textCell = table.cell(3,0)
+                if col_name in ["insurer","adjuster"]:
+                    textCell = nestedti.cell(0,0)
+                if col_name in ["claim #","assigned gc","pm contact"]:
+                    textCell = nestedti.cell(0,1)
+                if col_name in ["date of loss","date of inspection"]:
+                    textCell = nestedtd.cell(0,0)
+                if col_name in ["date assigned","date of report"]:
+                    textCell = nestedtd.cell(0,1)
                 para = textCell.add_paragraph()
+                para.paragraph_format.space_before = Pt(0)
+                para.paragraph_format.space_after = Pt(0)
+                para.paragraph_format.line_spacing = 1
                 run = para.add_run(f"{display_col_name}: ")
                 if col_name == "cause of loss" or col_name == "description of risk":
                     para.add_run(f"\n{str(data[row_index][i])}\n")
                 else:
                     para.add_run(str(data[row_index][i]))
                 apply_style(para, "Normal")
+                if col_name == "type of loss":
+                    para.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 run.bold = True
                 if col_name == "cause of loss" or col_name == "description of risk":
                     run.font.color.rgb = RGBColor(47, 84, 150)
@@ -246,10 +303,20 @@ def generate_docs(excel_path, room_image_map, output_filename, row_index, log_ca
                     apply_style(para, "List Paragraph")
                     run.font.bold = False
                     run1.font.bold = False
+            elif col_name == "recommended scope of work:":
+                temp = str(data[row_index][i]).split('\n')
+                p = doc.add_paragraph(display_col_name)
+                apply_style(p,"Heading 3")
+                doc.add_paragraph(temp[0])
+                for x in temp[1::]:
+                    if x.strip():
+                        p = doc.add_paragraph(x.strip(), style="List Number")
+                        p.paragraph_format.line_spacing = Inches(0.33)
+
             elif col_name == "product manager":
                 temp = data[row_index][i].split('\n')
 
-                para1 = nestedt.cell(0,0).add_paragraph()
+                para1 = nestedti.cell(0,0).add_paragraph()
                 run2 = para1.add_run(f"{display_col_name}: ")
                 para1.add_run(f"{temp[0]}")
                 apply_style(para1, "Normal")
