@@ -291,23 +291,33 @@ def generate_docs(excel_path, room_image_map, output_filename, row_index, log_ca
             elif col_name in ["indemnity reserves:", "expense reserves:"]:
                 para = doc.add_paragraph(display_col_name + " ", style='List Bullet')
                 if col_name == "indemnity reserves:":
-                    temp = data[row_index][i].split("HST")
-                    note = temp[1]
-                    run = para.add_run(temp[0] + "HST")
+                    temp = str(data[row_index][i]).split('\n')
+                    run = para.add_run(temp[0])
+                    for x in temp[1::]:
+                        if x.strip():
+                            p = doc.add_paragraph(x.strip(), style="BulletList")
+                            p.paragraph_format.line_spacing = Inches(0.33)
                     apply_style(para, "List Paragraph")
                     run.font.bold = False
                 else:
-                    run = para.add_run(str(data[row_index][i]))
-                    run1 = para.add_run(f"\nNote: {note.strip()}")
-                    run1.add_break()
+                    temp = str(data[row_index][i]).split('\n')
+                    run = para.add_run(temp[0])
+                    for x in temp[1::]:
+                        if x.strip():
+                            p = doc.add_paragraph(x.strip(), style="BulletList")
+                            p.paragraph_format.line_spacing = Inches(0.33)
                     apply_style(para, "List Paragraph")
+                    run1 = doc.add_paragraph()
+                    run2 = run1.add_run("Note: Our actual cost will be adjusted once the exact scope of approved work is known. The recommended estimate is only based on visual inspection for reserves setting purposes.")
                     run.font.bold = False
-                    run1.font.bold = False
+                    run2.font.bold = False
+                    run2.font.italic = True
+                    doc.add_page_break()
             elif col_name == "recommended scope of work:":
                 temp = str(data[row_index][i]).split('\n')
                 p = doc.add_paragraph(display_col_name)
                 apply_style(p,"Heading 3")
-                doc.add_paragraph(temp[0])
+                p1 = doc.add_paragraph(temp[0])
                 for x in temp[1::]:
                     if x.strip():
                         p = doc.add_paragraph(x.strip(), style="List Number")
@@ -324,14 +334,20 @@ def generate_docs(excel_path, room_image_map, output_filename, row_index, log_ca
 
                 para = doc.add_paragraph()
                 para.add_run().add_break()
+                r = para.add_run("We will await your approval and direction before proceeding with the scope outlined above.")
+                r.add_break()
+                r.add_break()
                 run = para.add_run("Thank you,")
+                run.add_break()
+                run.add_break()
                 run1 = para.add_run(f"\n{temp[0]}")
                 for line in temp[1:]:
                     para.add_run(f"\n{line}")
                 apply_style(para, "Normal")
                 run1.font.bold = True
+                r.font.bold = True
             else:
-                if col_name == "conclusion":
+                if col_name == "proposed plan of action":
                     doc.add_paragraph().add_run().add_break()
                     heading2 = doc.add_heading(display_col_name, level=2)
                     par = doc.add_paragraph(str(data[row_index][i]))
