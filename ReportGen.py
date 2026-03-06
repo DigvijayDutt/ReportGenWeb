@@ -572,7 +572,14 @@ class MultiDocApp:
                 self.log(f"[INFO] Generating document for claim: {claim_name} -> {output_filename}")
 
                 # call your document generator (synchronous). It uses `self.log` as callback.
-                result = generate_docs(self.excel_path, room_images, output_filename, i, self.log)
+                result = await asyncio.to_thread(
+                            generate_docs,
+                            self.excel_path,
+                            room_images,
+                            output_filename,
+                            i,
+                            self.log
+                        )
 
                 if result:
                     generated_files.append(result)
